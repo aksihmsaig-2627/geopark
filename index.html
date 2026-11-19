@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kalkulator Estimasi Biaya Wisata UGGp Indonesia</title>
+<style>
+:root{
+  --bg:#f6f4ee; --card:#ffffff; --ink:#1f2a27; --muted:#5d6b66; --line:#dcd8cc;
+  --green:#0f6e56; --green-soft:#e1f1eb; --amber:#ba7517; --amber-soft:#faeeda;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@media(max-width:600px){.grid{grid-template-columns:1fr}}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+select,input[type=number]{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;font:inherit;background:#fff;color:var(--ink)}
+select:focus,input:focus{outline:2px solid var(--green);outline-offset:1px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1;min-width:84px;padding:8px 10px;border:1px solid var(--line);background:#fff;border-radius:9px;font:inherit;cursor:pointer;color:var(--ink)}
+.seg button[aria-pressed=true]{background:var(--green);border-color:var(--green);color:#fff}
+.total{background:var(--green);color:#fff;border-radius:14px;padding:18px;margin-bottom:14px}
+.total .lbl{opacity:.85;font-size:13px}
+.total .big{font-size:30px;font-weight:700;line-height:1.2;margin:2px 0}
+.total .range{opacity:.9;font-size:13px}
+.total .pp{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.3);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
+.note{background:var(--amber-soft);border:1px solid #e9cf9d;color:#5a3a07;border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:14px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}
+th{font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+td.n,th.n{text-align:right;white-space:nowrap}
+tr.sum td{font-weight:700;border-bottom:none}
+.bar{height:6px;background:var(--green-soft);border-radius:4px;margin-top:5px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--green)}
+h2{font-size:16px;margin:0 0 10px}
+.small{font-size:12.5px;color:var(--muted)}
+tr.cmp{cursor:pointer}
+tr.cmp:hover td{background:var(--green-soft)}
+tr.cmp.sel td{background:var(--green-soft);font-weight:600}
+.tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:99px;background:var(--green-soft);color:var(--green);margin-left:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Estimasi Biaya Wisata ke UGGp Indonesia</h1>
+  <p class="sub">Pilih kota asal dan geopark tujuan, lalu atur jumlah orang, lama liburan, dan gaya perjalanan.</p>
+
+  <div class="card">
+    <div class="grid">
+      <div><label for="origin">Kota asal</label><select id="origin"></select></div>
+      <div><label for="geo">Geopark tujuan</label><select id="geo"></select></div>
+      <div><label for="people">Jumlah orang</label><input id="people" type="number" min="1" max="30" value="2"></div>
+      <div><label for="days">Lama liburan (hari)</label><input id="days" type="number" min="1" max="21" value="3"></div>
+    </div>
+    <div class="grid" style="margin-top:12px">
+      <div><label>Penginapan</label>
+        <div class="seg" id="tier"></div></div>
+      <div><label>Transportasi ke lokasi</label>
+        <div class="seg" id="mode"></div></div>
+      <div><label>Musim</label>
+        <div class="seg" id="season"></div></div>
+    </div>
+  </div>
+
+  <div class="total" id="total"></div>
+  <div class="note" id="notice" hidden></div>
+
+  <div class="card">
+    <h2>Rincian biaya</h2>
+    <table id="breakdown"></table>
+  </div>
+
+  <div class="card">
+    <h2>Bandingkan semua geopark dari <span id="originName"></span></h2>
+    <p class="small" style="margin-top:0">Dengan pengaturan di atas. Klik baris untuk memilih geopark.</p>
+    <table id="compare"></table>
+  </div>
+
+  <p class="small" id="disclaimer"></p>
+</div>
+
+<script>
+/* ============================================================
+   DATA — semua angka di bawah ini ESTIMASI/ASUMSI. Ganti dengan
+   data yang sudah kamu verifikasi, lalu perbarui DATA_UPDATED.
+   ============================================================ */
+const DATA_UPDATED = "November 2026";
+
+// grup = pulau/wilayah yang terhubung jalur darat (untuk moda darat)
+const ORIGINS = [
+  {id:"medan",     name:"Medan",      pulau:"Sumatera",   g:"SUM", lat:3.59,  lng:98.67},
+  {id:"palembang", name:"Palembang",  pulau:"Sumatera",   g:"SUM", lat:-2.98, lng:104.73},
+  {id:"jakarta",   name:"Jakarta",    pulau:"Jawa",       g:"JBL", lat:-6.20, lng:106.85},
+  {id:"bandung",   name:"Bandung",    pulau:"Jawa",       g:"JBL", lat:-6.91, lng:107.61},
+  {id:"semarang",  name:"Semarang",   pulau:"Jawa",       g:"JBL", lat:-6.97, lng:110.42},
+  {id:"surabaya",  name:"Surabaya",   pulau:"Jawa",       g:"JBL", lat:-7.25, lng:112.75},
+  {id:"denpasar",  name:"Denpasar",   pulau:"Bali",       g:"JBL", lat:-8.65, lng:115.22},
+  {id:"mataram",   name:"Mataram",    pulau:"Lombok",     g:"LOM", lat:-8.58, lng:116.12},
+  {id:"pontianak", name:"Pontianak",  pulau:"Kalimantan", g:"KAL", lat:-0.03, lng:109.33},
+  {id:"balikpapan",name:"Balikpapan", pulau:"Kalimantan", g:"KAL", lat:-1.24, lng:116.83},
+  {id:"makassar",  name:"Makassar",   pulau:"Sulawesi",   g:"SUL", lat:-5.15, lng:119.43},
+  {id:"manado",    name:"Manado",     pulau:"Sulawesi",   g:"SUL", lat:1.47,  lng:124.84},
+  {id:"ambon",     name:"Ambon",      pulau:"Maluku",     g:"MAL", lat:-3.70, lng:128.18},
+  {id:"jayapura",  name:"Jayapura",   pulau:"Papua",      g:"PAP", lat:-2.53, lng:140.72},
+];
+
+// lat/lng = titik gerbang (kota/bandara terdekat). hotel = [hemat, standar, nyaman] per kamar per malam.
+// makan, tiket (tiket masuk + aktivitas), lokal (transport lokal/sewa) = per orang per hari.
+const GEOPARKS = [
+  {id:"batur",    name:"Batur",                 prov:"Bali",                    g:"JBL", lat:-8.25, lng:115.38, hotel:[250000,500000,1200000], makan:120000, tiket:100000, lokal:150000},
+  {id:"gunungsewu",name:"Gunung Sewu",          prov:"DI Yogyakarta, Jateng, Jatim", g:"JBL", lat:-7.97, lng:110.60, hotel:[200000,400000,900000], makan:90000, tiket:60000, lokal:120000},
+  {id:"kebumen",  name:"Kebumen",               prov:"Jawa Tengah",             g:"JBL", lat:-7.67, lng:109.65, hotel:[180000,350000,800000],  makan:80000,  tiket:40000,  lokal:100000},
+  {id:"ciletuh",  name:"Ciletuh-Palabuhanratu", prov:"Jawa Barat",              g:"JBL", lat:-6.92, lng:106.93, hotel:[200000,400000,900000],  makan:90000,  tiket:50000,  lokal:120000},
+  {id:"ijen",     name:"Ijen",                  prov:"Jawa Timur",              g:"JBL", lat:-8.22, lng:114.37, hotel:[200000,400000,900000],  makan:90000,  tiket:100000, lokal:150000},
+  {id:"rinjani",  name:"Rinjani-Lombok",        prov:"Nusa Tenggara Barat",     g:"LOM", lat:-8.76, lng:116.28, hotel:[250000,550000,1300000], makan:110000, tiket:150000, lokal:150000},
+  {id:"toba",     name:"Kaldera Toba",          prov:"Sumatera Utara",          g:"SUM", lat:2.26, lng:98.99,  hotel:[200000,450000,1000000], makan:100000, tiket:50000,  lokal:130000},
+  {id:"merangin", name:"Merangin Jambi",        prov:"Jambi",                   g:"SUM", lat:-2.12, lng:102.15, hotel:[180000,350000,700000],  makan:80000,  tiket:30000,  lokal:120000},
+  {id:"belitong", name:"Belitong",              prov:"Kep. Bangka Belitung",    g:"BEL", lat:-2.75, lng:107.65, hotel:[250000,450000,1000000], makan:100000, tiket:80000,  lokal:150000},
+  {id:"meratus",  name:"Meratus",               prov:"Kalimantan Selatan",      g:"KAL", lat:-2.58, lng:115.38, hotel:[180000,350000,700000],  makan:80000,  tiket:40000,  lokal:120000},
+  {id:"maros",    name:"Maros-Pangkep",         prov:"Sulawesi Selatan",        g:"SUL", lat:-4.99, lng:119.57, hotel:[200000,400000,800000],  makan:85000,  tiket:50000,  lokal:120000},
+  {id:"rajaampat",name:"Raja Ampat",            prov:"Papua Barat Daya",        g:"PAP", lat:-0.88, lng:131.26, hotel:[450000,900000,2000000], makan:170000, tiket:300000, lokal:400000},
+];
+
+// Parameter model biaya (ubah sesuai data harga terbaru)
+const PARAM = {
+  pesawat: {base:350000, perKm:1100, min:500000, speedKmh:750, overheadJam:2.0}, // tarif sekali jalan, ekonomi
+  darat:   {base:50000,  perKm:750,  speedKmh:55,  roadFactor:1.3},              // bus/kereta, sekali jalan
+  batasDaratKm: 800,       // di atas jarak ini moda darat tidak ditawarkan
+  batasDaratAutoJam: 12,   // mode "Termurah" hanya memilih darat bila perjalanan <= jam ini
+  batasPesawatKm: 250,     // di bawah jarak ini pesawat tidak dipakai
+  orangPerKamar: 2,
+  cadangan: 0.10,          // dana tak terduga
+  musim: {normal:{label:"Normal", f:1.0}, libur:{label:"Libur panjang", f:1.4}},
+  tier: [{label:"Hemat"},{label:"Standar"},{label:"Nyaman"}],
+  rentang: {bawah:0.85, atas:1.20}
+};
+/* ============================================================ */
+
+const $ = id => document.getElementById(id);
+const rpExact = n => "Rp" + (Math.round(n/1000)*1000).toLocaleString("id-ID");
+const state = {tier:1, mode:"auto", season:"normal"};
+
+function haversine(a,b){
+  const R=6371, rad=x=>x*Math.PI/180;
+  const dLat=rad(b.lat-a.lat), dLng=rad(b.lng-a.lng);
+  const h=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+
+function transportOptions(o,g){
+  const km = haversine(o,g), seas = PARAM.musim[state.season].f;
+  const opts = {};
+  if(o.g===g.g && km<=PARAM.batasDaratKm){
+    const d=PARAM.darat, road=km*d.roadFactor;
+    opts.darat = {km, oneWay:(d.base+d.perKm*km)*seas, hours:road/d.speedKmh, label:"Darat (bus/kereta)"};
+  }
+  if(km>=PARAM.batasPesawatKm){
+    const p=PARAM.pesawat;
+    opts.pesawat = {km, oneWay:Math.max(p.min,p.base+p.perKm*km)*seas, hours:km/p.speedKmh+p.overheadJam, label:"Pesawat"};
+  }
+  if(!Object.keys(opts).length){ // rute antar-pulau jarak dekat: tetap butuh pesawat/kapal
+    const p=PARAM.pesawat;
+    opts.pesawat = {km, oneWay:Math.max(p.min,p.base+p.perKm*km)*seas, hours:km/p.speedKmh+p.overheadJam, label:"Pesawat"};
+  }
+  return {km, opts};
+}
+
+function calc(o,g,people,days){
+  const {km,opts} = transportOptions(o,g);
+  let key, fallback=false;
+  const avail = Object.keys(opts);
+  if(state.mode==="auto"){
+    const pool = avail.filter(k=>k!=="darat" || opts.darat.hours<=PARAM.batasDaratAutoJam);
+    key = (pool.length?pool:avail).sort((a,b)=>opts[a].oneWay-opts[b].oneWay)[0];
+  } else if(opts[state.mode]){ key = state.mode; }
+  else { key = avail[0]; fallback=true; }
+  const t = opts[key];
+  const nights = Math.max(0,days-1);
+  const rooms = Math.ceil(people/PARAM.orangPerKamar);
+  const lines = [
+    {k:"Transportasi pergi-pulang ("+t.label+")", v:t.oneWay*2*people, note:"~"+Math.round(km).toLocaleString("id-ID")+" km, ±"+t.hours.toFixed(1)+" jam sekali jalan"},
+    {k:"Penginapan", v:g.hotel[state.tier]*rooms*nights, note:rooms+" kamar × "+nights+" malam"},
+    {k:"Makan & minum", v:g.makan*people*days, note:people+" orang × "+days+" hari"},
+    {k:"Tiket masuk & aktivitas", v:g.tiket*people*days, note:people+" orang × "+days+" hari"},
+    {k:"Transportasi lokal", v:g.lokal*people*days, note:"sewa/ojek/angkutan setempat"},
+  ];
+  const sub = lines.reduce((s,l)=>s+l.v,0);
+  const buf = sub*PARAM.cadangan;
+  lines.push({k:"Dana tak terduga ("+Math.round(PARAM.cadangan*100)+"%)", v:buf, note:"cadangan"});
+  const total = sub+buf;
+  return {lines,total,key,fallback,km,t,nights};
+}
+
+function buildSeg(el,items,key){
+  el.innerHTML="";
+  items.forEach(([val,label])=>{
+    const b=document.createElement("button");
+    b.type="button"; b.textContent=label;
+    b.setAttribute("aria-pressed", String(state[key]===val));
+    b.onclick=()=>{state[key]=val; buildAll();};
+    el.appendChild(b);
+  });
+}
+
+function buildAll(){
+  buildSeg($("tier"), PARAM.tier.map((t,i)=>[i,t.label]), "tier");
+  buildSeg($("mode"), [["auto","Termurah"],["pesawat","Pesawat"],["darat","Darat"]], "mode");
+  buildSeg($("season"), Object.entries(PARAM.musim).map(([k,v])=>[k,v.label]), "season");
+  render();
+}
+
+function render(){
+  const o = ORIGINS.find(x=>x.id===$("origin").value);
+  const g = GEOPARKS.find(x=>x.id===$("geo").value);
+  const people = Math.min(30,Math.max(1,parseInt($("people").value)||1));
+  const days = Math.min(21,Math.max(1,parseInt($("days").value)||1));
+  const r = calc(o,g,people,days);
+
+  $("originName").textContent = o.name;
+  $("total").innerHTML =
+    '<div class="lbl">Estimasi total · '+o.name+' → Geopark '+g.name+' ('+g.prov+')</div>'+
+    '<div class="big">'+rpExact(r.total)+'</div>'+
+    '<div class="range">Kisaran '+rpExact(r.total*PARAM.rentang.bawah)+' – '+rpExact(r.total*PARAM.rentang.atas)+'</div>'+
+    '<div class="pp"><span>Per orang: <b>'+rpExact(r.total/people)+'</b></span><span>'+people+' orang · '+days+' hari '+r.nights+' malam</span></div>';
+
+  const n=$("notice");
+  if(r.fallback){ n.hidden=false; n.textContent="Moda yang dipilih tidak tersedia untuk rute ini, jadi dihitung dengan "+r.t.label.toLowerCase()+"."; }
+  else if(days===1){ n.hidden=false; n.textContent="Perjalanan 1 hari: biaya penginapan dihitung nol."; }
+  else n.hidden=true;
+
+  const max = Math.max(...r.lines.map(l=>l.v));
+  $("breakdown").innerHTML =
+    '<tr><th>Komponen</th><th class="n">Biaya</th></tr>'+
+    r.lines.map(l=>'<tr><td>'+l.k+'<div class="small">'+l.note+'</div><div class="bar"><i style="width:'+(l.v/max*100).toFixed(0)+'%"></i></div></td><td class="n">'+rpExact(l.v)+'</td></tr>').join("")+
+    '<tr class="sum"><td>Total</td><td class="n">'+rpExact(r.total)+'</td></tr>';
+
+  const rows = GEOPARKS.map(gg=>({g:gg, r:calc(o,gg,people,days)})).sort((a,b)=>a.r.total-b.r.total);
+  $("compare").innerHTML =
+    '<tr><th>Geopark</th><th class="n">Transport PP</th><th class="n">Total</th><th class="n">Per orang</th></tr>'+
+    rows.map(x=>'<tr class="cmp'+(x.g.id===g.id?' sel':'')+'" data-id="'+x.g.id+'"><td>'+x.g.name+'<span class="tag">'+x.r.t.label.split(" ")[0]+'</span></td><td class="n">'+rpExact(x.r.lines[0].v)+'</td><td class="n">'+rpExact(x.r.total)+'</td><td class="n">'+rpExact(x.r.total/people)+'</td></tr>').join("");
+  document.querySelectorAll("tr.cmp").forEach(tr=>tr.onclick=()=>{$("geo").value=tr.dataset.id; render();});
+
+  $("disclaimer").textContent =
+    "Angka ini estimasi kasar untuk perencanaan awal, bukan harga pasti. Tarif transportasi dihitung dari jarak garis lurus ke titik gerbang geopark, sedangkan harga penginapan, makan, dan tiket memakai asumsi rata-rata per lokasi. Harga sebenarnya berubah menurut musim, maskapai, dan tanggal pemesanan. Data diperbarui: "+DATA_UPDATED+".";
+}
+
+ORIGINS.forEach(o=>$("origin").add(new Option(o.name+" ("+o.pulau+")", o.id)));
+GEOPARKS.forEach(g=>$("geo").add(new Option(g.name+" — "+g.prov, g.id)));
+$("origin").value="jakarta"; $("geo").value="batur";
+["origin","geo","people","days"].forEach(id=>{ $(id).addEventListener("input",render); $(id).addEventListener("change",render); });
+buildAll();
+</script>
+</body>
+</html>
